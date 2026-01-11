@@ -2,7 +2,7 @@ import streamlit as st
 import fitz
 from sentence_transformers import SentenceTransformer
 import faiss, os
-from google.genai import genai
+from google import genai
 from dotenv import load_dotenv
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 

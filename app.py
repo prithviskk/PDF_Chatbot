@@ -6,7 +6,9 @@ import google.genai as genai
 from dotenv import load_dotenv
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 import base64
+import streamlit.components.v1 as components
 
+# ---------------- CONFIG ----------------
 st.set_page_config(layout="wide")
 st.title("📄 PDF RAG Bot")
 
@@ -15,49 +17,60 @@ client = genai.Client(api_key=os.getenv("GEMINI_API_KEY"))
 
 model = SentenceTransformer("all-MiniLM-L6-v2")
 
-# SESSION INIT
+# ------------- SESSION STATE -------------
 if "index" not in st.session_state:
     st.session_state.index = None
     st.session_state.chunks = None
     st.session_state.pdf_bytes = None
 
-# LAYOUT
+# ------------ PDF DISPLAY FN -------------
+def display_pdf(pdf_bytes):
+    base64_pdf = base64.b64encode(pdf_bytes).decode("utf-8")
+    pdf_html = f"""
+    <embed
+        src="data:application/pdf;base64,{base64_pdf}"
+        width="100%"
+        height="800px"
+        type="application/pdf">
+    """
+    components.html(pdf_html, height=800, scrolling=True)
+
+# ---------------- LAYOUT -----------------
 left, right = st.columns([1, 1])
 
+# -------------- LEFT SIDE ---------------
 with left:
     st.subheader("📂 Uploaded PDF")
+
     uploaded = st.file_uploader(
-        "Upload PDFs", 
+        "Upload PDF", 
+        type=["pdf"],
         accept_multiple_files=False
     )
 
-    if uploaded:
+    if uploaded and st.session_state.index is None:
+
         pdf_bytes = uploaded.read()
         st.session_state.pdf_bytes = pdf_bytes
 
-        # Display PDF with scroll
-        b64 = base64.b64encode(pdf_bytes).decode()
-        pdf_display = f"""
-        <iframe 
-            src="data:application/pdf;base64,{b64}" 
-            width="100%" 
-            height="700px">
-        </iframe>
-        """
-        st.markdown(pdf_display, unsafe_allow_html=True)
+        # Show PDF
+        display_pdf(pdf_bytes)
 
         # Extract text
-        r = fitz.open(stream=pdf_bytes, filetype="pdf")
+        doc = fitz.open(stream=pdf_bytes, filetype="pdf")
         text = ""
-        for p in r:
-            text += p.get_text()
+        for page in doc:
+            text += page.get_text()
 
+        # Chunking
         splitter = RecursiveCharacterTextSplitter(
             chunk_size=800,
             chunk_overlap=100
         )
 
         chunks = splitter.split_text(text)
+
+        # Embeddings
         embeds = model.encode(chunks)
 
         dim = embeds.shape[1]
@@ -67,17 +80,22 @@ with left:
         st.session_state.index = index
         st.session_state.chunks = chunks
 
-        st.success("PDF processed successfully!")
+        st.success("✅ PDF processed successfully!")
 
+    elif st.session_state.pdf_bytes:
+        # Show PDF again after rerun
+        display_pdf(st.session_state.pdf_bytes)
+
+# -------------- RIGHT SIDE --------------
 with right:
     st.subheader("🤖 Ask your PDF")
 
-    q = st.text_input("Ask question")
+    q = st.text_input("Ask your question")
 
     if st.button("Get Answer"):
 
         if st.session_state.index is None:
-            st.warning("Upload PDF first!")
+            st.warning("⚠ Upload a PDF first!")
         else:
             qv = model.encode([q])
             _, ids = st.session_state.index.search(qv, 3)

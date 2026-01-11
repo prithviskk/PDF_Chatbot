@@ -6,7 +6,6 @@ import google.genai as genai
 from dotenv import load_dotenv
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 import base64
-import streamlit.components.v1 as components
 
 # ---------------- CONFIG ----------------
 st.set_page_config(layout="wide")
@@ -26,14 +25,22 @@ if "index" not in st.session_state:
 # ------------ PDF DISPLAY FN -------------
 def display_pdf(pdf_bytes):
     base64_pdf = base64.b64encode(pdf_bytes).decode("utf-8")
+
     pdf_html = f"""
-    <embed
-        src="data:application/pdf;base64,{base64_pdf}"
+    <object
+        data="data:application/pdf;base64,{base64_pdf}"
+        type="application/pdf"
         width="100%"
-        height="800px"
-        type="application/pdf">
+        height="800px">
+
+        <p>PDF cannot be displayed.
+        <a href="data:application/pdf;base64,{base64_pdf}" download="file.pdf">
+        Download PDF</a></p>
+
+    </object>
     """
-    components.html(pdf_html, height=800, scrolling=True)
+
+    st.markdown(pdf_html, unsafe_allow_html=True)
 
 # ---------------- LAYOUT -----------------
 left, right = st.columns([1, 1])
@@ -43,7 +50,7 @@ with left:
     st.subheader("📂 Uploaded PDF")
 
     uploaded = st.file_uploader(
-        "Upload PDF", 
+        "Upload PDF",
         type=["pdf"],
         accept_multiple_files=False
     )
